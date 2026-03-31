@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Graph Reasoning</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <h1>GraphReasoner</h1>
+            <p>Knowledge Graph Inference using Neo4j</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="sidebar">
+            <div class="card">
+                <h3>Reasoning Queries</h3>
+                <p class="subtitle">Select a query to execute on Neo4j</p>
+                <div class="query-list">
+                    <button class="query-btn" onclick="runQuery('nlp_authors')">
+                        <strong>1. Basic Traversal</strong><br>
+                        "Find authors in NLP"
+                    </button>
+                    <button class="query-btn" onclick="runQuery('same_field_different_uni')">
+                        <strong>2. Indirect Inference</strong><br>
+                        "Same field, different Universities"
+                    </button>
+                    <button class="query-btn" onclick="runQuery('interdisciplinary')">
+                        <strong>3. Cross-Disciplinary</strong><br>
+                        "Authors in multiple fields"
+                    </button>
+                </div>
+            </div>
+
+            <div class="card status-card">
+                <h3>System Status</h3>
+                <div id="status-text" class="status-offline">Waiting for query...</div>
+            </div>
+        </div>
+
+        <div class="graph-container">
+            <div id="mynetwork"></div>
+            <div class="legend">
+                <span class="legend-item"><span class="color-box author"></span> Author</span>
+                <span class="legend-item"><span class="color-box paper"></span> Paper</span>
+                <span class="legend-item"><span class="color-box concept"></span> Concept</span>
+                <span class="legend-item"><span class="color-box inst"></span> Institution</span>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

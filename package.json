@@ -1,0 +1,16 @@
+{
+  "name": "knowledge-graph-project",
+  "version": "1.0.0",
+  "description": "Knowledge Representation and Reasoning using Knowledge Graphs (Neo4j)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "fetch-data": "node setup/fetch_dataset.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "neo4j-driver": "^5.23.0"
+  }
+}
