@@ -1,10 +1,11 @@
 {
   "name": "knowledge-graph-project",
   "version": "1.0.0",
-  "description": "Knowledge Representation and Reasoning using Knowledge Graphs (Neo4j)",
+  "description": "Knowledge Representation and Reasoning using Knowledge Graphs (Neo4j + OpenAlex)",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
+    "dev": "node server/server.js",
     "fetch-data": "node setup/fetch_dataset.js"
   },
   "dependencies": {

@@ -1,60 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knowledge Graph Reasoning</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knowledge Graph Reasoning — NLP Research</title>
+    <meta name="description" content="Interactive Neo4j Knowledge Graph for NLP Research Publications — explore authors, papers, institutions and reasoning queries." />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-    <header>
-        <div class="header-content">
-            <h1>GraphReasoner</h1>
-            <p>Knowledge Graph Inference using Neo4j</p>
-        </div>
-    </header>
+<div class="app">
 
-    <main>
-        <div class="sidebar">
-            <div class="card">
-                <h3>Reasoning Queries</h3>
-                <p class="subtitle">Select a query to execute on Neo4j</p>
-                <div class="query-list">
-                    <button class="query-btn" onclick="runQuery('nlp_authors')">
-                        <strong>1. Basic Traversal</strong><br>
-                        "Find authors in NLP"
-                    </button>
-                    <button class="query-btn" onclick="runQuery('same_field_different_uni')">
-                        <strong>2. Indirect Inference</strong><br>
-                        "Same field, different Universities"
-                    </button>
-                    <button class="query-btn" onclick="runQuery('interdisciplinary')">
-                        <strong>3. Cross-Disciplinary</strong><br>
-                        "Authors in multiple fields"
-                    </button>
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
+                    <line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/>
+                </svg>
+                <span>GraphReasoner</span>
+            </div>
+            <p class="sidebar-sub">NLP Research · Neo4j</p>
+        </div>
+
+        <nav class="query-nav">
+            <p class="nav-label">Reasoning Queries</p>
+            <div id="query-list">
+                <!-- populated by JS via /api/queries -->
+                <div class="loading-queries">Loading queries...</div>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="db-status" id="db-status">
+                <span class="dot"></span>
+                <span id="db-status-text">Not connected</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── Main area ── -->
+    <main class="main">
+
+        <!-- top bar -->
+        <header class="topbar">
+            <div id="active-query-title" class="active-query-label">
+                Select a query to begin
+            </div>
+            <div class="view-switch">
+                <button class="view-btn active" id="btn-table" onclick="switchView('table')">Table</button>
+                <button class="view-btn" id="btn-graph" onclick="switchView('graph')">Graph</button>
+            </div>
+        </header>
+
+        <!-- reasoning explanation banner -->
+        <div class="reasoning-banner" id="reasoning-banner" style="display:none">
+            <div class="banner-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+            </div>
+            <p id="reasoning-text"></p>
+        </div>
+
+        <!-- TABLE VIEW -->
+        <div class="view-panel" id="view-table">
+            <div class="empty-state" id="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <h3>No query selected</h3>
+                <p>Pick a reasoning query from the sidebar to explore the knowledge graph.</p>
+            </div>
+            <div id="table-wrap" style="display:none">
+                <div class="results-meta" id="results-meta"></div>
+                <div class="table-scroll">
+                    <table id="results-table">
+                        <thead id="table-head"></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
                 </div>
             </div>
+        </div>
 
-            <div class="card status-card">
-                <h3>System Status</h3>
-                <div id="status-text" class="status-offline">Waiting for query...</div>
+        <!-- GRAPH VIEW -->
+        <div class="view-panel" id="view-graph" style="display:none">
+            <div id="network-container"></div>
+            <div class="graph-legend">
+                <span class="legend-item"><span class="dot-lg author-dot"></span>Author</span>
+                <span class="legend-item"><span class="dot-lg paper-dot"></span>Paper</span>
+                <span class="legend-item"><span class="dot-lg concept-dot"></span>Concept</span>
+                <span class="legend-item"><span class="dot-lg inst-dot"></span>Institution</span>
             </div>
         </div>
 
-        <div class="graph-container">
-            <div id="mynetwork"></div>
-            <div class="legend">
-                <span class="legend-item"><span class="color-box author"></span> Author</span>
-                <span class="legend-item"><span class="color-box paper"></span> Paper</span>
-                <span class="legend-item"><span class="color-box concept"></span> Concept</span>
-                <span class="legend-item"><span class="color-box inst"></span> Institution</span>
-            </div>
+        <!-- spinner overlay -->
+        <div class="spinner-overlay" id="spinner" style="display:none">
+            <div class="spinner"></div>
         </div>
+
     </main>
+</div>
 
-    <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
