@@ -203,10 +203,7 @@ function drawNetwork(nodesMap, edgesArr) {
     const data    = { nodes: new vis.DataSet([...nodesMap.values()]), edges: new vis.DataSet(edges) };
     const options = {
         physics: {
-            solver: 'forceAtlas2Based',
-            forceAtlas2Based: { gravitationalConstant: -30, centralGravity: 0.003, springLength: 160, springConstant: 0.08 },
-            maxVelocity: 60,
-            stabilization: { iterations: 200 }
+            stabilization: { iterations: 100 }
         },
         edges: {
             color: { color: '#30363d', highlight: '#58a6ff' },
@@ -226,19 +223,25 @@ function switchView(view) {
     currentView = view;
     document.getElementById('btn-table').classList.toggle('active', view === 'table');
     document.getElementById('btn-graph').classList.toggle('active', view === 'graph');
+    document.getElementById('btn-chat').classList.toggle('active', view === 'chat');
+    
     document.getElementById('view-table').style.display = view === 'table' ? 'flex' : 'none';
     document.getElementById('view-graph').style.display = view === 'graph' ? 'flex' : 'none';
+    document.getElementById('view-chat').style.display = view === 'chat' ? 'flex' : 'none';
 
     // if switching to graph and a query is already loaded, re-render
     if (view === 'graph' && activeKey) {
         const tbody = document.getElementById('table-body');
         if (tbody.children.length > 0) {
             const rows = tableToRecords();
-            if (activeKey === 'full_subgraph') {
-                renderGraph(rows, activeKey);
-            } else {
-                renderGraphFromTableRecords(rows, activeKey);
-            }
+            // vis-network needs parent container to have width/height calculated.
+            setTimeout(() => {
+                if (activeKey === 'full_subgraph') {
+                    renderGraph(rows, activeKey);
+                } else {
+                    renderGraphFromTableRecords(rows, activeKey);
+                }
+            }, 300);
         }
     }
 }
@@ -292,4 +295,57 @@ function guessType(key) {
 
 function truncate(s, n) {
     return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+// ── Graph RAG Chatbot ───────────────────────────────────────────────────────
+function handleChatKey(e) {
+    if (e.key === 'Enter') sendChatMessage();
+}
+
+async function sendChatMessage() {
+    const inputEl = document.getElementById('chat-input');
+    const question = inputEl.value.trim();
+    if (!question) return;
+
+    inputEl.value = '';
+    
+    const history = document.getElementById('chat-history');
+    
+    // add user message
+    const userMsg = document.createElement('div');
+    userMsg.className = 'chat-message user';
+    userMsg.innerHTML = `<div class="msg-bubble">${question}</div>`;
+    history.appendChild(userMsg);
+    
+    // add loading bot message
+    const botMsg = document.createElement('div');
+    botMsg.className = 'chat-message bot';
+    botMsg.innerHTML = `<div class="msg-bubble"><i>Generating Cypher and asking Neo4j... <span class="dot"></span></i></div>`;
+    history.appendChild(botMsg);
+    
+    history.scrollTop = history.scrollHeight;
+
+    try {
+        const res = await fetch(`${API}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question })
+        });
+        const data = await res.json();
+        
+        if (!data.success) throw new Error(data.error);
+        
+        botMsg.innerHTML = `
+            <div class="msg-bubble">
+                ${data.answer}
+                <div class="cypher-block">
+                    <div class="cypher-label">Generated Cypher</div>
+                    ${data.cypher}
+                </div>
+            </div>`;
+    } catch (e) {
+        botMsg.innerHTML = `<div class="msg-bubble" style="color:#ff7b72">Error: ${e.message}</div>`;
+    }
+    
+    history.scrollTop = history.scrollHeight;
 }

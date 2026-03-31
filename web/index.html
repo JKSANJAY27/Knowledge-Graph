@@ -53,6 +53,7 @@
             <div class="view-switch">
                 <button class="view-btn active" id="btn-table" onclick="switchView('table')">Table</button>
                 <button class="view-btn" id="btn-graph" onclick="switchView('graph')">Graph</button>
+                <button class="view-btn" id="btn-chat" onclick="switchView('chat')">Graph RAG</button>
             </div>
         </header>
 
@@ -73,7 +74,7 @@
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
                 <h3>No query selected</h3>
-                <p>Pick a reasoning query from the sidebar to explore the knowledge graph.</p>
+                <p>Pick a reasoning query from the sidebar or click Graph RAG to chat.</p>
             </div>
             <div id="table-wrap" style="display:none">
                 <div class="results-meta" id="results-meta"></div>
@@ -94,6 +95,30 @@
                 <span class="legend-item"><span class="dot-lg paper-dot"></span>Paper</span>
                 <span class="legend-item"><span class="dot-lg concept-dot"></span>Concept</span>
                 <span class="legend-item"><span class="dot-lg inst-dot"></span>Institution</span>
+            </div>
+        </div>
+
+        <!-- CHAT VIEW (Text-to-Cypher RAG) -->
+        <div class="view-panel" id="view-chat" style="display:none; background: radial-gradient(circle at center, #161b22, #0d1117);">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <h3>Ollama Graph RAG</h3>
+                    <p>Powered by local llama3.2:3b traversing Neo4j</p>
+                </div>
+                
+                <div class="chat-history" id="chat-history">
+                    <div class="chat-message bot">
+                        <div class="msg-bubble">
+                            Hi! I am connected to your Neo4j Knowledge Graph. Ask me anything, for example:<br>
+                            <i>"Find researchers who work in natural language processing but belong to different universities."</i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Ask a question about the knowledge graph..." onkeypress="handleChatKey(event)" />
+                    <button onclick="sendChatMessage()">Send</button>
+                </div>
             </div>
         </div>
 

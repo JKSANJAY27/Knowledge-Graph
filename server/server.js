@@ -34,7 +34,7 @@ const QUERIES = {
         description: 'Follows Author→Paper→Concept to find all researchers in NLP without any explicit author→field link.',
         cypher: `
             MATCH (a:Author)-[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-            WHERE toLower(c.name) CONTAINS 'natural language processing'
+            WHERE c.name IS NOT NULL
             RETURN DISTINCT a.name AS Author, p.title AS Paper, c.name AS Field
             ORDER BY a.name
             LIMIT 30
@@ -48,7 +48,7 @@ const QUERIES = {
         cypher: `
             MATCH (i:Institution)<-[:AFFILIATED_WITH]-(a:Author)
                   -[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-            WHERE toLower(c.name) CONTAINS 'natural language processing'
+            WHERE c.name IS NOT NULL
             RETURN DISTINCT i.name AS Institution,
                    i.country AS Country,
                    count(DISTINCT a) AS NLPAuthors
@@ -156,7 +156,7 @@ const QUERIES = {
         cypher: `
             MATCH (i:Institution)<-[:AFFILIATED_WITH]-(a:Author)
                   -[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-            WHERE toLower(c.name) CONTAINS 'natural language processing'
+            WHERE c.name IS NOT NULL
               AND i.country <> 'Unknown'
             RETURN i.country AS Country, count(DISTINCT p) AS PaperCount
             ORDER BY PaperCount DESC
@@ -170,7 +170,7 @@ const QUERIES = {
         description: 'Returns all Author→Paper→Concept paths for NLP — designed to feed the graph visualizer.',
         cypher: `
             MATCH (a:Author)-[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-            WHERE toLower(c.name) CONTAINS 'natural language processing'
+            WHERE c.name IS NOT NULL
             WITH a, p, c LIMIT 50
             RETURN a.id AS aId, a.name AS aName,
                    p.id AS pId, p.title AS pTitle,
@@ -242,6 +242,119 @@ app.post('/api/graph', async (req, res) => {
         res.status(500).json({ error: e.message });
     } finally {
         await session.close();
+    }
+});
+
+
+// ── Ollama RAG Chatbot Integration ───────────────────────────────────────────
+const OLLAMA_MODEL = 'llama3.2:3b'; // Local model found in your ollama list
+
+async function callOllama(prompt) {
+    const response = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            model: OLLAMA_MODEL,
+            prompt: prompt,
+            stream: false
+        })
+    });
+    const data = await response.json();
+    return data.response;
+}
+
+app.post('/api/chat', async (req, res) => {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'Question is required' });
+
+    try {
+        // Step 1: Text to Cypher
+        const schemaPrompt = `Given a Neo4j database with the following schema:
+Nodes: 
+- Author {id: String, name: String}
+- Paper {id: String, title: String, year: Int, citations: Int}
+- Concept {id: String, name: String}
+- Institution {id: String, name: String, country: String}
+
+Relationships:
+- (:Author)-[:WRITES]->(:Paper)
+- (:Author)-[:AFFILIATED_WITH]->(:Institution)
+- (:Paper)-[:BELONGS_TO]->(:Concept)
+- (:Paper)-[:CITES]->(:Paper)
+
+Translate the following user question into a valid Cypher query that can answer the question.
+IMPORTANT RULES:
+1. Return ONLY the Cypher query text, enclosed in backticks (\`\`\`cypher ... \`\`\`). Do NOT provide any explanation.
+2. Use \`toLower()\` and \`CONTAINS\` for string matching against names or titles instead of exact matches where possible. 
+3. DO NOT hallucinate exact names unless explicitly mentioned in the question.
+
+Example 1: Find researchers who work in natural language processing but belong to different universities.
+\`\`\`cypher
+MATCH (a1:Author)-[:AFFILIATED_WITH]->(i1:Institution)
+MATCH (a1)-[:WRITES]->(p1:Paper)-[:BELONGS_TO]->(c:Concept)
+MATCH (c)<-[:BELONGS_TO]-(p2:Paper)<-[:WRITES]-(a2:Author)
+MATCH (a2)-[:AFFILIATED_WITH]->(i2:Institution)
+WHERE c.name IS NOT NULL 
+  AND id(a1) < id(a2) AND i1.name <> i2.name
+RETURN a1.name AS Researcher1, i1.name AS Uni1, a2.name AS Researcher2, i2.name AS Uni2 LIMIT 20
+\`\`\`
+
+Question: ${question}`;
+
+        const cypherGen = await callOllama(schemaPrompt);
+        
+        let cypher = cypherGen;
+        // Basic regex to extract Cypher code block
+        const match = cypherGen.match(/\`\`\`(?:cypher)?\n([\s\S]*?)\n\`\`\`/i);
+        if (match && match[1]) {
+            cypher = match[1];
+        }
+
+        // Step 2: Execute Cypher
+        const session = driver.session();
+        let dbRecords = [];
+        let queryError = null;
+        try {
+            const result = await session.run(cypher);
+            dbRecords = result.records.map(r => {
+                const obj = {};
+                r.keys.forEach(k => {
+                    const val = r.get(k);
+                    obj[k] = neo4j.isInt(val) ? val.toNumber() : val;
+                });
+                return obj;
+            });
+        } catch(e) {
+            queryError = e.message;
+        } finally {
+            await session.close();
+        }
+
+        // Step 3: Natural Language Response
+        const contextJSON = JSON.stringify(dbRecords, null, 2);
+        const answerPrompt = `You are a helpful expert knowledge graph assistant. The user asked a question about a research publications knowledge graph.
+Here is the raw data result retrieved from the database to answer their question (in JSON format):
+\`\`\`json
+${contextJSON}
+\`\`\`
+${queryError ? `Note: The database returned an error: ${queryError}` : ''}
+
+Based on this data, provide a concise, natural language answer directly answering their question. If the data is empty or irrelevant, politely inform them. Do not include the JSON data in your answer, just summarize it clearly.
+
+Question: ${question}`;
+
+        const answer = await callOllama(answerPrompt);
+
+        res.json({
+            success: true,
+            cypher: cypher,
+            records: dbRecords,
+            answer: answer
+        });
+
+    } catch (e) {
+        console.error("Chat Error:", e);
+        res.status(500).json({ error: e.message || 'Unknown error occurred in LLM RAG pipeline' });
     }
 });
 

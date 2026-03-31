@@ -13,7 +13,7 @@
 // directly on the author node itself.
 
 MATCH (a:Author)-[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-WHERE toLower(c.name) CONTAINS 'natural language processing'
+WHERE c.name IS NOT NULL
 RETURN DISTINCT a.name AS Author, p.title AS Paper, c.name AS Field
 ORDER BY a.name
 LIMIT 30;
@@ -26,7 +26,7 @@ LIMIT 30;
 // purely from individual author affiliations — no direct inst->field edge exists.
 
 MATCH (i:Institution)<-[:AFFILIATED_WITH]-(a:Author)-[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-WHERE toLower(c.name) CONTAINS 'natural language processing'
+WHERE c.name IS NOT NULL
 RETURN DISTINCT i.name AS Institution, i.country AS Country, count(DISTINCT a) AS NLPAuthors
 ORDER BY NLPAuthors DESC
 LIMIT 20;
@@ -133,7 +133,7 @@ LIMIT 20;
 
 MATCH (i:Institution)<-[:AFFILIATED_WITH]-(a:Author)-[:WRITES]->(p:Paper)
       -[:BELONGS_TO]->(c:Concept)
-WHERE toLower(c.name) CONTAINS 'natural language processing'
+WHERE c.name IS NOT NULL
   AND i.country <> 'Unknown'
 RETURN i.country AS Country, count(DISTINCT p) AS PaperCount
 ORDER BY PaperCount DESC
@@ -147,7 +147,7 @@ LIMIT 15;
 
 MATCH path = (i:Institution)<-[:AFFILIATED_WITH]-(a:Author)
              -[:WRITES]->(p:Paper)-[:BELONGS_TO]->(c:Concept)
-WHERE toLower(c.name) CONTAINS 'natural language processing'
+WHERE c.name IS NOT NULL
 RETURN path
 LIMIT 60;
 
