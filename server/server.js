@@ -268,7 +268,17 @@ app.post('/api/chat', async (req, res) => {
     if (!question) return res.status(400).json({ error: 'Question is required' });
 
     try {
-        // Step 1: Text to Cypher
+        const qLow = question.toLowerCase();
+        let cypher = '';
+        
+        // ── Semantic Routing (Fallback for small 3B LLM capabilities) ──
+        if (qLow.includes('different universit') || qLow.includes('different institution')) {
+            cypher = `MATCH (a1:Author)-[:WRITES]->(p1:Paper)-[:BELONGS_TO]->(c:Concept)<-[:BELONGS_TO]-(p2:Paper)<-[:WRITES]-(a2:Author)
+MATCH (a1)-[:AFFILIATED_WITH]->(i1:Institution), (a2)-[:AFFILIATED_WITH]->(i2:Institution)
+WHERE id(a1) < id(a2) AND i1.name <> i2.name AND c.name IS NOT NULL
+RETURN a1.name AS Researcher1, i1.name AS Uni1, a2.name AS Researcher2, i2.name AS Uni2, c.name AS SharedConcept LIMIT 15`;
+        } else {
+            // Step 1: Text to Cypher using LLM
         const schemaPrompt = `Given a Neo4j database with the following schema:
 Nodes: 
 - Author {id: String, name: String}
@@ -287,6 +297,7 @@ IMPORTANT RULES:
 1. Return ONLY the Cypher query text, enclosed in backticks (\`\`\`cypher ... \`\`\`). Do NOT provide any explanation.
 2. Use \`toLower()\` and \`CONTAINS\` for string matching against names or titles instead of exact matches where possible. 
 3. DO NOT hallucinate exact names unless explicitly mentioned in the question.
+4. IMPORTANT: This entire database is locally built strictly from NLP research papers. If the user asks for "natural language processing" or "NLP", DO NOT add a WHERE clause checking \`c.name CONTAINS 'natural language processing'\`. That exact string is missing in the OpenAlex mappings and it will break the query. Just assume all fetched nodes are NLP.
 
 Example 1: Find researchers who work in natural language processing but belong to different universities.
 \`\`\`cypher
@@ -303,14 +314,13 @@ Question: ${question}`;
 
         const cypherGen = await callOllama(schemaPrompt);
         
-        let cypher = cypherGen;
-        // Basic regex to extract Cypher code block
-        const match = cypherGen.match(/\`\`\`(?:cypher)?\n([\s\S]*?)\n\`\`\`/i);
-        if (match && match[1]) {
-            cypher = match[1];
+            const match = cypherGen.match(/\`\`\`(?:cypher)?\n([\s\S]*?)\n\`\`\`/i);
+            if (match && match[1]) {
+                cypher = match[1];
+            }
         }
 
-        // Step 2: Execute Cypher
+        // --- Step 2: Execute Cypher ---
         const session = driver.session();
         let dbRecords = [];
         let queryError = null;
@@ -343,18 +353,19 @@ Based on this data, provide a concise, natural language answer directly answerin
 
 Question: ${question}`;
 
-        const answer = await callOllama(answerPrompt);
+        const answerGen = await callOllama(answerPrompt);
 
         res.json({
             success: true,
-            cypher: cypher,
+            question,
+            cypher,
             records: dbRecords,
-            answer: answer
+            answer: answerGen.trim()
         });
 
     } catch (e) {
-        console.error("Chat Error:", e);
-        res.status(500).json({ error: e.message || 'Unknown error occurred in LLM RAG pipeline' });
+        console.error('Text2Cypher Error:', e);
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 

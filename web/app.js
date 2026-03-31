@@ -145,7 +145,7 @@ function renderGraph(records, label) {
 }
 
 // fallback graph builder for non-subgraph queries
-function renderGraphFromTableRecords(records, key) {
+function renderGraphFromTableRecords(records, key, containerId = 'network-container') {
     if (!records || records.length === 0) return;
 
     const nodesMap = new Map();
@@ -171,7 +171,7 @@ function renderGraphFromTableRecords(records, key) {
         }
     }
 
-    drawNetwork(nodesMap, edgesArr);
+    drawNetwork(nodesMap, edgesArr, containerId);
 }
 
 function addNode(map, id, label, type) {
@@ -188,8 +188,8 @@ function addNode(map, id, label, type) {
     });
 }
 
-function drawNetwork(nodesMap, edgesArr) {
-    const container = document.getElementById('network-container');
+function drawNetwork(nodesMap, edgesArr, containerId = 'network-container') {
+    const container = document.getElementById(containerId);
 
     // dedupe edges
     const seen = new Set();
@@ -214,8 +214,12 @@ function drawNetwork(nodesMap, edgesArr) {
         interaction: { hover: true, tooltipDelay: 150 }
     };
 
-    if (network) network.destroy();
-    network = new vis.Network(container, data, options);
+    if (containerId === 'network-container') {
+        if (network) network.destroy();
+        network = new vis.Network(container, data, options);
+    } else {
+        new vis.Network(container, data, options);
+    }
 }
 
 // ── View switching ─────────────────────────────────────────────────────────
@@ -335,6 +339,7 @@ async function sendChatMessage() {
         
         if (!data.success) throw new Error(data.error);
         
+        const msgId = Date.now();
         botMsg.innerHTML = `
             <div class="msg-bubble">
                 ${data.answer}
@@ -342,7 +347,16 @@ async function sendChatMessage() {
                     <div class="cypher-label">Generated Cypher</div>
                     ${data.cypher}
                 </div>
+                ${data.records && data.records.length > 0 ? `<div id="mini-graph-${msgId}" class="mini-graph" style="height: 250px; background: radial-gradient(ellipse at center, #1a2130 0%, var(--bg) 100%); margin-top: 1rem; border-radius: 6px; border: 1px solid var(--border); overflow: hidden; position: relative;"></div>` : ''}
             </div>`;
+            
+        // Render the visual graph branches using the exact subset of records 
+        if (data.records && data.records.length > 0) {
+            setTimeout(() => {
+                renderGraphFromTableRecords(data.records, 'chat', `mini-graph-${msgId}`);
+                history.scrollTop = history.scrollHeight;
+            }, 100);
+        }
     } catch (e) {
         botMsg.innerHTML = `<div class="msg-bubble" style="color:#ff7b72">Error: ${e.message}</div>`;
     }
