@@ -1,75 +1,73 @@
-# Knowledge Graph Reasoning with Neo4j
+# 🕸️ Neo4j GraphReasoner: NLP Research Knowledge Graph
 
-## Domain Description
-This project focuses on the **Research Publications** domain. It automatically extracts real-world data from the open internet (via the OpenAlex API) specifically focused on **Natural Language Processing (NLP)**. 
+**GraphReasoner** is an end-to-end, highly interactive Knowledge Graph application designed to map, traverse, and extract deep relational insights from real-world **Natural Language Processing (NLP) Research Publications**.
 
-### Entities (Nodes)
-* `Author`: Researchers who publish papers
-* `Paper`: Academic publications
-* `Institution`: Universities or companies authors are affiliated with
-* `Concept`: Fields of study (e.g., Natural Language Processing)
+Powered by a **Neo4j** graph database, an **Express/Node.js** backend, and a custom physics-simulated **vis-network** frontend, this project moves far beyond simple table lookups. It utilizes true **Graph-Based Reasoning** to uncover hidden patterns, indirect affiliations, and structural centralities across academic authors, papers, institutions, and concepts.
 
-### Relationships (Edges)
-* `(Author)-[:WRITES]->(Paper)`
-* `(Author)-[:AFFILIATED_WITH]->(Institution)`
-* `(Paper)-[:BELONGS_TO]->(Concept)`
-* `(Paper)-[:CITES]->(Paper)`
+To top it off, it features an integrated **Ollama Graph RAG Chatbot** powered by `llama3.2:3b` that translates natural language inquiries into Cypher queries, retrieves the sub-graph, and visualizes the exact logic pathing right inside the chat window!
 
 ---
 
-## 🚀 Setup Instructions (Windows)
+## ✨ Core Features
 
-Since you don't have Neo4j set up, follow these steps exactly to get everything running locally on your machine.
+### 🌌 1. OpenAlex Data Pipeline (Real-World Data)
+- Dynamically fetches, sanitizes, and maps large volumes of interconnected NLP research data from the **OpenAlex API** natively into CSVs perfectly formatted for Neo4j consumption.
+- Graph Topology includes `(Author)-[:WRITES]->(Paper)-[:BELONGS_TO]->(Concept)`, `[:AFFILIATED_WITH]->(Institution)`, and `[:CITES]->(Paper)`.
 
-### Step 1: Install Neo4j Desktop
-1. Go to [neo4j.com/download](https://neo4j.com/download/) and download **Neo4j Desktop** for Windows.
-2. Install the program by running the downloaded `.exe` file.
-3. Open Neo4j Desktop. You do not strictly need an activation key, you can continue with a free account.
+### 🧠 2. 10-Tiered Analytical Cypher Engine
+GraphReasoner includes 10 complex, heavily-optimized Cypher operations directly bound to the UI to demonstrate specific types of reasoning:
+* **Direct Traversal**: Fetching direct `Author ↔ Paper` chains.
+* **Multi-hop / Structural Inference**: "Find co-authors who have never directly collaborated but share a mutual collaborator."
+* **Indirect Inference**: "Find researchers who work in the exact same field, but belong to entirely completely different, unconnected universities."
+* **Centrality & Ecosystem Hubs**: Identifying the most structurally critical papers (highest in-degree citation count) tying the graph together.
+* **Negative Pattern Filtering (Collaborator Recommendations)**: Searching for highly compatible candidates by traversing 3 hops deep while specifically excluding direct previous relationships.
 
-### Step 2: Create a Local Database
-1. In Neo4j Desktop, under **Projects**, click **Add** -> **Local DBMS**.
-2. Name it `GraphProject` (or whatever you like).
-3. **IMPORTANT**: Set the password to `password123`. 
-   *(Note: If you choose a different password, you MUST update the `.env` file in this project's `server/` directory).*
-4. Click **Start** to run the database.
+### 🎨 3. Flawless Interactive Visualizer
+A 100% custom-built Vanilla JS frontend mapping the complex JSON outputs from Neo4j natively into draggable, zoomable, physics-simulated canvases via `vis-network`.
+* Instantly switches between structured data metrics (Table) and relational topologies (Graph) without redundant API calls.
 
-### Step 3: Fetch the Real Internet Dataset
-Open a terminal in the `knowledge_graph` directory and run:
-```bash
-npm install
-npm run fetch-data
-```
-This runs the Node.js script `setup/fetch_dataset.js` which hits the OpenAlex API, pulls NLP papers, and generates CSV files inside `setup/import_data/`.
-
-### Step 4: Move CSVs to Neo4j Import Folder
-Neo4j restricts where it can read local files from for security. You must move the generated CSVs into the active database's `import` folder.
-1. In Neo4j Desktop, click the **three dots [...]** next to your running `GraphProject` DBMS.
-2. Click **Open Folder** -> **Import**.
-3. A Windows Explorer window will open. Copy all the `.csv` files from `D:\Sanjay\B.Tech CSE\knowledge_graph\setup\import_data\` into this folder.
-
-### Step 5: Import Data to Neo4j
-1. In Neo4j Desktop, click the big blue **Open** button next to your DBMS to open **Neo4j Browser**.
-2. Open `setup/01_create_schema.cypher` from this project. Copy its contents, paste them into the top command line of the Neo4j Browser, and press **Run** (Play button on the right).
-3. Open `setup/02_import.cypher`. **Run each LOAD CSV block one at a time** in the Neo4j Browser.
-
-### Step 6: Start the Dashboard
-1. Open a terminal in `knowledge_graph` and run:
-```bash
-npm start
-```
-2. Open your web browser and go to: `http://localhost:3000`
-3. Click the Reasoning Query buttons on the left to see reasoning in action!
+### 🤖 4. "Next-Gen" Ollama Graph RAG Chatbot
+- Run natural language queries directly against your local graph. The system uses **LLaMA 3.2 (3B)** via Ollama to translate English questions into executable **Cypher Query Language**.
+- **Semantic Auto-Correction**: Employs an intelligent Node.js interception routing layer to prevent the small 3B model from hallucinating non-existent database properties (like broken text filters or invalid syntaxes), enforcing strict structural success.
+- **Embedded Vis-Network Feedback**: Whenever the LLM answers your question, the frontend seamlessly intercepts the exact graph subset the Database returned and instantly generates a **custom, physics-based mini-graph directly inside the Chat Bubble**. You can physically see the branches the AI traversed to give you the answer!
 
 ---
 
-## 🧠 Reasoning Explanations
+## 🛠️ Tech Stack
 
-### 1. Indirect Relationship Inference
-**Query:** "Find researchers who work in the same field but belong to different universities."
-* **How it works:** Traditional relational databases would require massive complex JOIN clauses. In Neo4j, we simply specify an *Anti-Pattern* (`id(i1) <> id(i2)`) traversing through common concepts.
-* **Why it's smart:** This demonstrates "graph-based recommendation". You can discover unknown potential collaborators purely by tracking traversal paths, even if the two authors have literally never interacted or cited each other.
+- **Database Engine**: Neo4j Desktop / Cypher
+- **Backend API**: Node.js, Express.js, `neo4j-driver`
+- **Generative AI / RAG**: Local Ollama Server (`llama3.2:3b`)
+- **Frontend App**: Pure HTML5, CSS3 (CSS Variables for dynamic theming), Vanilla JavaScript
+- **Visualization Tool**: `vis-network` (Canvas Network Physics)
 
-### 2. Cross-Disciplinary Discovery
-**Query:** "Authors publishing across 3 or more concepts"
-* **How it works:** We traverse `(Author)->(Paper)->(Concept)` and collect distinct fields.
-* **Why it's smart:** This is semantic reasoning computing an unstated property ("interdisciplinary") based purely on the structure of the surrounding graph edges over time.
+---
+
+## 🚀 Getting Started
+
+### 1. Requirements
+* Node.js (v18+)
+* Neo4j Desktop (v5+)
+* Ollama installed locally with `llama3.2:3b` pulled (`ollama run llama3.2:3b`)
+
+### 2. Database Setup
+1. Create a Neo4j Database on port `7687`. Set the password exactly to `password123` (or update your `.env` file).
+2. Run `node setup/fetch_dataset.js` to build the CSV import structures from OpenAlex.
+3. Import the CSVs into your active Neo4j Database.
+4. (Optional) You can verify the reasoning algorithms directly within Neo4j by pasting the queries from `setup/03_queries.cypher`.
+
+### 3. Running the Dashboard
+1. Open a terminal in the root directory.
+2. Ensure your `.env` contains:
+   \`\`\`env
+   NEO4J_URI=bolt://localhost:7687
+   NEO4J_USER=neo4j
+   NEO4J_PASSWORD=password123
+   PORT=3000
+   \`\`\`
+3. Run \`npm start\`.
+4. Open your browser to \`http://localhost:3000\`.
+5. Start reasoning! Click **Q10 (Full NLP Subgraph)** to populate the visual engine, and tab into the **Graph RAG** view to ask questions.
+
+---
+*Built as a state-of-the-art demonstration of bridging Graph Databases with Retrieval-Augmented Generation (RAG) capabilities.*
