@@ -3,11 +3,38 @@ const express = require('express');
 const cors    = require('cors');
 const neo4j   = require('neo4j-driver');
 const path    = require('path');
+const { langfuse, logger, wrapNeo4jSession, wrapOllamaCall, THRESHOLDS } = require('./telemetry');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../web')));
+
+// Telemetry Middleware: Create root trace for every request
+app.use((req, res, next) => {
+    const start = Date.now();
+    // Start Langfuse trace
+    req.trace = langfuse.trace({
+        name: `${req.method} ${req.path}`,
+        metadata: { path: req.path, method: req.method }
+    });
+
+    res.on('finish', () => {
+        const latency = Date.now() - start;
+        req.trace.update({
+            metadata: { path: req.path, method: req.method, status: res.statusCode, latency_ms: latency }
+        });
+        
+        logger.info('API_REQUEST', `${req.method} ${req.path} ${res.statusCode}`, {
+            path: req.path, method: req.method, status: res.statusCode, latency_ms: latency
+        });
+
+        if (res.statusCode >= 500) {
+            logger.alert('HIGH_API_ERROR_RATE', `API Endpoint Error Status: ${res.statusCode}`, { path: req.path });
+        }
+    });
+    next();
+});
 
 // ── Neo4j connection ──────────────────────────────────────────────────────────
 const driver = neo4j.driver(
@@ -199,15 +226,7 @@ app.post('/api/query', async (req, res) => {
 
     const session = driver.session();
     try {
-        const result  = await session.run(cypher);
-        const records = result.records.map(r => {
-            const obj = {};
-            r.keys.forEach(k => {
-                const val = r.get(k);
-                obj[k] = neo4j.isInt(val) ? val.toNumber() : val;
-            });
-            return obj;
-        });
+        const records = await wrapNeo4jSession(session, cypher, req.trace, `Query: ${queryKey || 'Custom'}`);
         res.json({
             success: true,
             records,
@@ -228,15 +247,11 @@ app.post('/api/graph', async (req, res) => {
 
     const session = driver.session();
     try {
-        const result = await session.run(q.cypher);
-        const records = result.records.map(r => {
-            const obj = {};
-            r.keys.forEach(k => {
-                const val = r.get(k);
-                obj[k] = neo4j.isInt(val) ? val.toNumber() : val;
-            });
-            return obj;
-        });
+        const records = await wrapNeo4jSession(session, q.cypher, req.trace, `Graph: ${req.body.queryKey}`);
+        
+        if (records.length < THRESHOLDS.EMPTY_VISUALIZER_NODES) {
+            logger.alert('EMPTY_VISUALIZER', `Visualizer query returned < ${THRESHOLDS.EMPTY_VISUALIZER_NODES} nodes.`, { queryKey: req.body.queryKey });
+        }
         res.json({ success: true, records, label: q.label });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -249,19 +264,6 @@ app.post('/api/graph', async (req, res) => {
 // ── Ollama RAG Chatbot Integration ───────────────────────────────────────────
 const OLLAMA_MODEL = 'llama3.2:3b'; // Local model found in your ollama list
 
-async function callOllama(prompt) {
-    const response = await fetch('http://localhost:11434/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: OLLAMA_MODEL,
-            prompt: prompt,
-            stream: false
-        })
-    });
-    const data = await response.json();
-    return data.response;
-}
 
 app.post('/api/chat', async (req, res) => {
     const { question } = req.body;
@@ -312,7 +314,7 @@ RETURN a1.name AS Researcher1, i1.name AS Uni1, a2.name AS Researcher2, i2.name 
 
 Question: ${question}`;
 
-        const cypherGen = await callOllama(schemaPrompt);
+        const cypherGen = await wrapOllamaCall(schemaPrompt, OLLAMA_MODEL, req.trace, 'LLM Text2Cypher');
         
             const match = cypherGen.match(/\`\`\`(?:cypher)?\n([\s\S]*?)\n\`\`\`/i);
             if (match && match[1]) {
@@ -325,15 +327,7 @@ Question: ${question}`;
         let dbRecords = [];
         let queryError = null;
         try {
-            const result = await session.run(cypher);
-            dbRecords = result.records.map(r => {
-                const obj = {};
-                r.keys.forEach(k => {
-                    const val = r.get(k);
-                    obj[k] = neo4j.isInt(val) ? val.toNumber() : val;
-                });
-                return obj;
-            });
+            dbRecords = await wrapNeo4jSession(session, cypher, req.trace, 'RAG Subgraph Retrieval');
         } catch(e) {
             queryError = e.message;
         } finally {
@@ -353,7 +347,7 @@ Based on this data, provide a concise, natural language answer directly answerin
 
 Question: ${question}`;
 
-        const answerGen = await callOllama(answerPrompt);
+        const answerGen = await wrapOllamaCall(answerPrompt, OLLAMA_MODEL, req.trace, 'LLM Natural Language Response');
 
         res.json({
             success: true,

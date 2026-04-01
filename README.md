@@ -38,8 +38,23 @@ A 100% custom-built Vanilla JS frontend mapping the complex JSON outputs from Ne
 - **Database Engine**: Neo4j Desktop / Cypher
 - **Backend API**: Node.js, Express.js, `neo4j-driver`
 - **Generative AI / RAG**: Local Ollama Server (`llama3.2:3b`)
+- **Telemetry & Monitoring**: Langfuse SDK, Structured JSON Logs
 - **Frontend App**: Pure HTML5, CSS3 (CSS Variables for dynamic theming), Vanilla JavaScript
 - **Visualization Tool**: `vis-network` (Canvas Network Physics)
+
+---
+
+## 📊 Telemetry & Monitoring
+
+GraphReasoner is equipped with an enterprise-grade tracing and structured logging engine right out of the box, capable of observing nested logic paths from the HTTP layer all the way down to the graph database and LLM inference.
+
+- **Langfuse Distributed Tracing**: Every API request (`/api/query`, `/api/chat`, `/api/graph`) automatically starts a root trace. Neo4j graph queries and Ollama LLM queries are accurately recorded as nested child \`span\`s and \`generation\`s bound seamlessly to the parent request, capturing exact latency, rows matched, and token estimates.
+- **Structured JSON Logging**: Forget messy console strings. All Node.js backend output is securely formatted as strict JSON payloads containing ISO timestamps, making it trivial for log scrapers like Promtail/Loki to ingest stdout strictly for Grafana dashboards.
+- **Built-in Alert System**: The `telemetry.js` module actively evaluates hard thresholds on the fly. It pushes `ALERT`-level logs locally for scenarios like:
+  - Slow DB Queries (> 1500ms)
+  - Sluggish Chatbot Generations (> 10s)
+  - Endpoints resolving with 500 server error codes
+  - Undersaturated graph visualizer payload returns (< 2 nodes)
 
 ---
 
